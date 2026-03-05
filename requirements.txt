@@ -1,0 +1,24 @@
+# Core dependencies for PDF to Video conversion pipeline
+
+# PDF Processing
+PyMuPDF>=1.23.0
+
+# AI/LLM Services
+openai>=1.0.0
+
+# Text-to-Speech
+elevenlabs>=0.2.0
+
+# Video Processing
+moviepy>=1.0.3
+pysubs2>=1.7.0
+
+# HTTP Requests (for API calls and image downloads)
+requests>=2.31.0
+
+# Environment Configuration
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
