@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import importlib
 import logging
+import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
+from pdf2video.subtitle_utils import burn_subtitles_ffmpeg, check_ffmpeg_available
 from pdf2video.types import FinalVideo, VideoClip
+from pdf2video.types import SubtitleError
 logger = logging.getLogger(__name__)
 
 
@@ -16,6 +19,10 @@ class CompositionError(Exception):
 
 def _load_moviepy_editor() -> Any:
     return importlib.import_module("moviepy")
+
+
+def _load_pysubs2() -> Any:
+    return importlib.import_module("pysubs2")
 
 
 def _ensure_file_exists(path: Path, label: str) -> None:
@@ -72,11 +79,41 @@ def _loop_clip(moviepy_editor: Any, clip: Any, duration: float) -> Any:
     return clip.fx(vfx.loop, duration=duration)
 
 
+def _apply_subtitles_moviepy(moviepy_editor: Any, clip: Any, subtitle_path: Path) -> Any:
+    pysubs2 = _load_pysubs2()
+    subtitles = pysubs2.load(str(subtitle_path))
+
+    subtitle_clips: List[Any] = []
+    for event in getattr(subtitles, "events", []):
+        raw_text = str(getattr(event, "text", "") or "").strip()
+        if not raw_text:
+            continue
+
+        start_ms = float(getattr(event, "start", 0) or 0)
+        end_ms = float(getattr(event, "end", start_ms) or start_ms)
+        duration = max(0.0, (end_ms - start_ms) / 1000.0)
+        if duration <= 0:
+            continue
+
+        text = raw_text.replace("\\N", "\n")
+        text_clip = moviepy_editor.TextClip(text)
+        text_clip = text_clip.with_start(start_ms / 1000.0)
+        text_clip = text_clip.with_duration(duration)
+        text_clip = text_clip.with_position(("center", "bottom"))
+        subtitle_clips.append(text_clip)
+
+    if not subtitle_clips:
+        return clip
+
+    return moviepy_editor.CompositeVideoClip([clip, *subtitle_clips])
+
+
 def compose_video(
     audio_path: str,
     video_clips: List[VideoClip],
     output_path: str,
     resolution: tuple[int, int] = (1920, 1080),
+    subtitle_path: Optional[Path] = None,
 ) -> FinalVideo:
     logger.info("Starting video composition (output: %s)", output_path)
     logger.debug("Composition parameters: resolution=%s, video_clips=%d", resolution, len(video_clips))
@@ -91,6 +128,12 @@ def compose_video(
     audio_file = Path(audio_path)
     logger.debug("Checking audio file: %s", audio_file)
     _ensure_file_exists(audio_file, "audio")
+
+    subtitle_file: Optional[Path] = None
+    if subtitle_path is not None:
+        subtitle_file = Path(subtitle_path)
+        if not subtitle_file.exists():
+            raise SubtitleError(f"Missing subtitle file: {subtitle_file}")
 
     for idx, clip in enumerate(video_clips, 1):
         logger.debug("Checking video clip %d/%d: %s", idx, len(video_clips), clip.file_path)
@@ -107,6 +150,8 @@ def compose_video(
     loaded_video_clips: List[Any] = []
     composed_video_clip: Any = None
     final_video_clip: Any = None
+    ffmpeg_subtitle_burn = bool(subtitle_file) and check_ffmpeg_available()
+    temporary_output_path: Optional[Path] = None
 
     try:
         logger.debug("Loading audio file: %s", audio_file)
@@ -141,17 +186,38 @@ def compose_video(
 
         logger.debug("Resizing video to %s", resolution)
         composed_video_clip = _resize_clip(composed_video_clip, resolution)
+
+        if subtitle_file is not None and not ffmpeg_subtitle_burn:
+            logger.warning("FFmpeg unavailable, using MoviePy subtitle fallback")
+            composed_video_clip = _apply_subtitles_moviepy(moviepy_editor, composed_video_clip, subtitle_file)
+
         logger.debug("Setting audio track")
         final_video_clip = _set_audio(composed_video_clip, audio_clip)
 
         fps = getattr(final_video_clip, "fps", None) or 30
         logger.info("Exporting final video: %s (fps=%d)", output_file, fps)
+
+        video_export_path = output_file
+        if subtitle_file is not None and ffmpeg_subtitle_burn:
+            logger.info("FFmpeg available, rendering intermediate video for subtitle burn")
+            with tempfile.NamedTemporaryFile(
+                suffix=output_file.suffix,
+                prefix=f"{output_file.stem}_base_",
+                dir=output_file.parent,
+                delete=False,
+            ) as temp_file:
+                temporary_output_path = Path(temp_file.name)
+            video_export_path = temporary_output_path
+
         final_video_clip.write_videofile(
-            str(output_file),
+            str(video_export_path),
             codec="libx264",
             audio_codec="aac",
             fps=fps,
         )
+
+        if subtitle_file is not None and ffmpeg_subtitle_burn and temporary_output_path is not None:
+            burn_subtitles_ffmpeg(temporary_output_path, subtitle_file, output_file)
 
         final_duration = float(getattr(final_video_clip, "duration", audio_duration) or 0.0)
         logger.info("Video composition complete: %s (duration=%.2fs, resolution=%s)", output_file, final_duration, f"{resolution[0]}x{resolution[1]}")
@@ -161,6 +227,8 @@ def compose_video(
             resolution=f"{resolution[0]}x{resolution[1]}",
         )
     except CompositionError:
+        raise
+    except SubtitleError:
         raise
     except FileNotFoundError as exc:
         logger.error("Asset file not found during composition: %s", exc)
@@ -187,3 +255,7 @@ def compose_video(
         if audio_clip is not None:
             with suppress(Exception):
                 audio_clip.close()
+
+        if temporary_output_path is not None and temporary_output_path.exists():
+            with suppress(Exception):
+                temporary_output_path.unlink()
