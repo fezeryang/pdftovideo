@@ -113,6 +113,9 @@ def _get_download_url(requests: Any, api_key: str, video_id: int) -> tuple[str, 
             data = response.json()
             video_files = data.get("video_files", [])
             
+            # Filter out None values from video_files list
+            video_files = [vf for vf in video_files if vf is not None]
+            
             if not video_files:
                 logger.error("No video files available for video ID %d", video_id)
                 raise VideoDownloadError(f"No video files available for video ID {video_id}")
@@ -122,8 +125,10 @@ def _get_download_url(requests: Any, api_key: str, video_id: int) -> tuple[str, 
             sd_video = None
             
             for video_file in video_files:
-                quality = video_file.get("quality", "").lower()
-                if quality == "hd" or video_file.get("height") == 1080:
+                # Safely handle None quality
+                quality_val = video_file.get("quality") if video_file else None
+                quality = str(quality_val).lower() if quality_val else ""
+                if quality == "hd" or (video_file and video_file.get("height") == 1080):
                     hd_video = video_file
                     break
                 elif quality == "sd":
