@@ -7,9 +7,13 @@ import logging
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 from pdf2video import __author__, __version__
 from pdf2video.pipeline import PipelineError, run_pipeline
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +66,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
             input_path=str(input_path),
             output_path=output_path,
             cleanup=not args.no_cleanup,
+            enable_subtitles=args.subtitles,
+            enable_emphasis=not args.no_emphasis,
+            sticker_config=Path(args.stickers) if args.stickers else None,
+            skip_tts=args.no_tts,
         )
         print(f"✓ Video created successfully: {final_video.file_path}")
         return 0
@@ -165,6 +173,25 @@ def create_parser() -> argparse.ArgumentParser:
         "--no-cleanup",
         action="store_true",
         help="Keep intermediate files (audio, downloaded clips)",
+    )
+    parser_generate.add_argument(
+        "--subtitles",
+        action="store_true",
+        help="Enable subtitle generation in the video",
+    )
+    parser_generate.add_argument(
+        "--stickers",
+        help="Path to sticker configuration JSON file",
+    )
+    parser_generate.add_argument(
+        "--no-emphasis",
+        action="store_true",
+        help="Disable AI keyword detection for emphasis",
+    )
+    parser_generate.add_argument(
+        "--no-tts",
+        action="store_true",
+        help="Skip TTS generation (for testing without ElevenLabs API)",
     )
     parser_generate.set_defaults(func=cmd_generate)
     
