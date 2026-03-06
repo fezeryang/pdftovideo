@@ -17,8 +17,9 @@ _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+")
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "deepseek-chat"
-DEEPSEEK_API_BASE = "https://api.deepseek.com"
+#KK|# Read from environment variables with fallbacks
+DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
+DEFAULT_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 KEYWORD_PROMPT = (
     "You are an expert at extracting key terms from video scripts. Extract 3-10 important keywords (names, "
     "technical terms, numbers, key concepts) that should be visually emphasized in subtitles. Return ONLY a "
