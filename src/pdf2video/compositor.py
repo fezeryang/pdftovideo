@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from pdf2video.subtitle_utils import burn_subtitles_ffmpeg, check_ffmpeg_available
-from pdf2video.types import FinalVideo, VideoClip
+from pdf2video.types import FinalVideo, VideoClip, StickerConfig
 from pdf2video.types import SubtitleError
+from pdf2video.sticker_overlay import load_sticker
 logger = logging.getLogger(__name__)
 
 
@@ -109,11 +110,12 @@ def _apply_subtitles_moviepy(moviepy_editor: Any, clip: Any, subtitle_path: Path
 
 
 def compose_video(
-    audio_path: str,
+    audio_path: Optional[str],
     video_clips: List[VideoClip],
     output_path: str,
     resolution: tuple[int, int] = (1920, 1080),
     subtitle_path: Optional[Path] = None,
+    stickers: Optional[List[StickerConfig]] = None,
 ) -> FinalVideo:
     logger.info("Starting video composition (output: %s)", output_path)
     logger.debug("Composition parameters: resolution=%s, video_clips=%d", resolution, len(video_clips))
@@ -125,9 +127,11 @@ def compose_video(
         logger.error("Invalid resolution: %s", resolution)
         raise CompositionError("resolution must be a tuple of positive integers")
 
-    audio_file = Path(audio_path)
-    logger.debug("Checking audio file: %s", audio_file)
-    _ensure_file_exists(audio_file, "audio")
+    audio_file: Optional[Path] = None
+    if audio_path is not None:
+        audio_file = Path(audio_path)
+        logger.debug("Checking audio file: %s", audio_file)
+        _ensure_file_exists(audio_file, "audio")
 
     subtitle_file: Optional[Path] = None
     if subtitle_path is not None:
@@ -135,6 +139,10 @@ def compose_video(
         if not subtitle_file.exists():
             raise SubtitleError(f"Missing subtitle file: {subtitle_file}")
 
+    # Validate stickers limit (max 5)
+    if stickers is not None and len(stickers) > 5:
+        logger.error("Too many stickers: %d (max 5)", len(stickers))
+        raise CompositionError("Maximum 5 stickers allowed per video")
     for idx, clip in enumerate(video_clips, 1):
         logger.debug("Checking video clip %d/%d: %s", idx, len(video_clips), clip.file_path)
         _ensure_file_exists(clip.file_path, "video")
@@ -148,14 +156,18 @@ def compose_video(
 
     audio_clip: Any = None
     loaded_video_clips: List[Any] = []
+    loaded_sticker_clips: List[Any] = []
     composed_video_clip: Any = None
     final_video_clip: Any = None
     ffmpeg_subtitle_burn = bool(subtitle_file) and check_ffmpeg_available()
     temporary_output_path: Optional[Path] = None
 
     try:
-        logger.debug("Loading audio file: %s", audio_file)
-        audio_clip = moviepy_editor.AudioFileClip(str(audio_file))
+        if audio_file is not None:
+            logger.debug("Loading audio file: %s", audio_file)
+            audio_clip = moviepy_editor.AudioFileClip(str(audio_file))
+        else:
+            logger.info("No audio file provided (skip_tts mode)")
 
         logger.debug("Loading %d video clips", len(video_clips))
         for idx, clip in enumerate(video_clips, 1):
@@ -172,27 +184,51 @@ def compose_video(
                 method="compose",
             )
 
-        audio_duration = float(getattr(audio_clip, "duration", 0.0) or 0.0)
-        video_duration = float(getattr(composed_video_clip, "duration", 0.0) or 0.0)
-        logger.debug("Durations: audio=%.2fs, video=%.2fs", audio_duration, video_duration)
+        if audio_clip is not None:
+            audio_duration = float(getattr(audio_clip, "duration", 0.0) or 0.0)
+            video_duration = float(getattr(composed_video_clip, "duration", 0.0) or 0.0)
+            logger.debug("Durations: audio=%.2fs, video=%.2fs", audio_duration, video_duration)
 
-        if audio_duration > 0 and video_duration > 0:
-            if video_duration < audio_duration:
-                logger.info("Looping video to match audio duration (%.2fs -> %.2fs)", video_duration, audio_duration)
-                composed_video_clip = _loop_clip(moviepy_editor, composed_video_clip, audio_duration)
-            elif video_duration > audio_duration:
-                logger.info("Trimming video to match audio duration (%.2fs -> %.2fs)", video_duration, audio_duration)
-                composed_video_clip = _trim_clip(composed_video_clip, audio_duration)
+            if audio_duration > 0 and video_duration > 0:
+                if video_duration < audio_duration:
+                    logger.info("Looping video to match audio duration (%.2fs -> %.2fs)", video_duration, audio_duration)
+                    composed_video_clip = _loop_clip(moviepy_editor, composed_video_clip, audio_duration)
+                elif video_duration > audio_duration:
+                    logger.info("Trimming video to match audio duration (%.2fs -> %.2fs)", video_duration, audio_duration)
+                    composed_video_clip = _trim_clip(composed_video_clip, audio_duration)
 
         logger.debug("Resizing video to %s", resolution)
         composed_video_clip = _resize_clip(composed_video_clip, resolution)
+
+        # Load and apply stickers if provided
+        if stickers:
+            logger.info("Loading %d stickers", len(stickers))
+            for idx, sticker_config in enumerate(stickers, 1):
+                logger.debug("Loading sticker %d/%d: %s", idx, len(stickers), sticker_config.path)
+                sticker_clip = load_sticker(sticker_config)
+                # Apply timing: start time and duration
+                sticker_duration = sticker_config.end_time - sticker_config.start_time
+                sticker_clip = sticker_clip.with_start(sticker_config.start_time)
+                sticker_clip = sticker_clip.with_duration(sticker_duration)
+                loaded_sticker_clips.append(sticker_clip)
+            
+            # Composite video with all stickers
+            logger.debug("Compositing video with %d stickers", len(loaded_sticker_clips))
+            composed_video_clip = moviepy_editor.CompositeVideoClip([
+                composed_video_clip,
+                *loaded_sticker_clips,
+            ])
 
         if subtitle_file is not None and not ffmpeg_subtitle_burn:
             logger.warning("FFmpeg unavailable, using MoviePy subtitle fallback")
             composed_video_clip = _apply_subtitles_moviepy(moviepy_editor, composed_video_clip, subtitle_file)
 
-        logger.debug("Setting audio track")
-        final_video_clip = _set_audio(composed_video_clip, audio_clip)
+        if audio_clip is not None:
+            logger.debug("Setting audio track")
+            final_video_clip = _set_audio(composed_video_clip, audio_clip)
+        else:
+            logger.debug("No audio track (skip_tts mode)")
+            final_video_clip = composed_video_clip
 
         fps = getattr(final_video_clip, "fps", None) or 30
         logger.info("Exporting final video: %s (fps=%d)", output_file, fps)
@@ -249,6 +285,10 @@ def compose_video(
                     clip.close()
 
         for clip in loaded_video_clips:
+            with suppress(Exception):
+                clip.close()
+
+        for clip in loaded_sticker_clips:
             with suppress(Exception):
                 clip.close()
 
