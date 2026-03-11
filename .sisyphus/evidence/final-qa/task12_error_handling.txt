@@ -1,0 +1,36 @@
+TASK 12: Error Handling QA
+==========================
+
+User-Friendly Error Messages Tested:
+
+1. Non-existent input file:
+   Command: python -m pdf2video.cli generate --input /nonexistent/file.pdf --output /tmp/test.mp4
+   Output: "Error: Input file not found: /nonexistent/file.pdf"
+   RESULT: PASS (clear, actionable message)
+
+2. Directory as input:
+   Command: python -m pdf2video.cli generate --input /tmp --output /tmp/test.mp4
+   Output: "Error: Input path is not a file: /tmp"
+   RESULT: PASS (clear, actionable message)
+
+3. Empty content errors:
+   - ScriptGenerationError: "Cannot generate script from empty content"
+   - TTSError: "Cannot synthesize empty text"
+   RESULT: PASS
+
+4. Missing API key errors:
+   - ScriptGenerationError: "OPENAI_API_KEY environment variable is not set"
+   - TTSError: "ELEVENLABS_API_KEY environment variable is not set"
+   - VideoSearchError: "PEXELS_API_KEY environment variable is not set"
+   RESULT: PASS (tells user exactly what to configure)
+
+5. Invalid parameters:
+   - VideoSearchError: "per_page must be between 1 and 80"
+   - VideoSearchError: "orientation must be one of {...}, got '...'"
+   RESULT: PASS (tells user valid range/options)
+
+6. Pipeline stage errors:
+   - All errors wrapped with stage name for context
+   RESULT: PASS
+
+RESULT: PASS

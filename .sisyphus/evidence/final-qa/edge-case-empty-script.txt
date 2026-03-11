@@ -1,0 +1,7 @@
+=== Edge Case 1: Empty Script ===
+Result for empty script: []
+PASS: Empty script handled gracefully
+
+=== Edge Case 1b: Whitespace-only Script ===
+Result for whitespace script: []
+PASS: Whitespace script handled gracefully

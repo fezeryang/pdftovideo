@@ -1,0 +1,41 @@
+F2 VERIFICATION RESULTS - 300s Full Artifact Frame Extraction
+Date: 2026-03-11
+
+Artifact:
+- final_test_300s_full.mp4
+
+Stream-level validity checks:
+- ffprobe format duration: 300.000000
+- video stream duration: 300.000000 (nb_frames=7500)
+- audio stream duration: 300.000000
+
+Frame extraction commands (all succeeded):
+- ffmpeg -y -ss 00:00:10 -i final_test_300s_full.mp4 -vframes 1 -q:v 2 -update 1 frame_300s_full_10s.jpg
+- ffmpeg -y -ss 00:02:00 -i final_test_300s_full.mp4 -vframes 1 -q:v 2 -update 1 frame_300s_full_120s.jpg
+- ffmpeg -y -ss 00:04:00 -i final_test_300s_full.mp4 -vframes 1 -q:v 2 -update 1 frame_300s_full_240s.jpg
+
+Extracted frame files:
+- frame_300s_full_10s.jpg (157 KB)
+- frame_300s_full_120s.jpg (263 KB)
+- frame_300s_full_240s.jpg (163 KB)
+
+Subtitle source checks (latest ASS):
+- path: /tmp/pdf2video_3cii4e48/subtitles.ass
+- Chinese dialogue present: YES
+- dialogue count: 246
+- PlayResX present: YES
+- PlayResY present: YES
+- expected bottom margin value present for 1080p style (MarginV=216): YES
+
+Note:
+- Multimodal visual tooling was unavailable at execution time (no response), so direct image-level AI interpretation of position/overflow could not be completed.
+- Structural and artifact checks above passed.
+
+ASS constraint verification (latest ASS):
+- MAX_LINES_PER_DIALOGUE: 2
+- MAX_CHARS_PER_LINE: 30
+- ANY_LINE_OVER_30: False
+- DEFAULT_ALIGN: 2
+- DEFAULT_MARGINL/R/V: 96 / 96 / 216
+- EMPHASIS_ALIGN: 2
+- EMPHASIS_MARGINL/R/V: 96 / 96 / 216

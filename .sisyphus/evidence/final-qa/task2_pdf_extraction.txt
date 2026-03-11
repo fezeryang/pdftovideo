@@ -1,0 +1,18 @@
+TASK 2: PDF Extraction QA
+=========================
+
+Test: Create and extract from test PDF
+Command: python -c "from pdf2video.extractor import extract_text, extract_images..."
+
+Result:
+- PDF file created: /tmp/qa_test.pdf
+- Text extracted: 49 characters
+- Images extracted: 0
+- Text content: 'Test PDF Content for QA\nThis is a test document.\n'
+
+Functions available:
+- extract_text(pdf_path: str) -> str
+- extract_images(pdf_path: str) -> List[Dict[str, Any]]
+- PDFExtractionError (custom exception)
+
+RESULT: PASS

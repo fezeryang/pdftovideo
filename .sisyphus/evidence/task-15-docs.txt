@@ -1,0 +1,62 @@
+# PDF to Video Automation Pipeline
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+> Automatically convert PDF research documents into narrated videos with AI voiceover and stock footage.
+
+## Features
+
+- **PDF Extraction**: Extracts text and images from PDF documents using PyMuPDF.
+- **AI Script Generation**: Automatically generates engaging video scripts from PDF content using OpenAI GPT-4.
+- **Natural Voiceover**: Converts scripts into high-quality audio using ElevenLabs TTS.
+- **Stock Footage Integration**: Searches for and downloads relevant stock videos from Pexels based on script content.
+- **Automated Composition**: Combines audio, video clips, and transitions into a final MP4 presentation using MoviePy.
+- **Robust Pipeline**: Includes retry logic with exponential backoff for all network operations.
+- **Comprehensive Testing**: Over 80 tests ensuring reliability across all modules.
+
+## Prerequisites
+
+- Python 3.10 or higher
+- API keys for OpenAI, ElevenLabs, and Pexels
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repo/pdftovideo.git
+   cd pdftovideo
+   ```
+
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -e .
+   ```
+
+## API Setup
+
+The pipeline requires three API keys to function. Copy `.env.example` to `.env` and fill in your keys:
+
+```bash
+cp .env.example .env
+```
+
+### OpenAI (GPT-4)
+\nTotal line count: 134
+\nSections present:
+## Features
+## Prerequisites
+## Installation
+## API Setup
+## Usage
+## Project Structure
+## Development
+## How It Works
+## Limitations
+## License

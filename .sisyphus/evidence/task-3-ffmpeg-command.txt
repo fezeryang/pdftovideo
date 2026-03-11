@@ -1,0 +1,10 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/test_subtitle_utils.py::TestBurnSubtitlesFFmpeg::test_burn_subtitles_constructs_correct_command PASSED [100%]
+
+============================== 1 passed in 0.09s ===============================

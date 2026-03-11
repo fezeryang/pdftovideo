@@ -1,0 +1,15 @@
+Task 2: Color Conversion Evidence
+==================================================
+
+ASS uses BGR format: &HBBGGRR&
+
+Color Conversion Tests:
+--------------------------------------------------
+✓ Red      RGB(255, 0, 0) → &H0000FF& → RGB(255, 0, 0)
+✓ Green    RGB(0, 255, 0) → &H00FF00& → RGB(0, 255, 0)
+✓ Blue     RGB(0, 0, 255) → &HFF0000& → RGB(0, 0, 255)
+✓ Gold     RGB(255, 200, 50) → &H32C8FF& → RGB(255, 200, 50)
+✓ Black    RGB(0, 0, 0) → &H000000& → RGB(0, 0, 0)
+✓ White    RGB(255, 255, 255) → &HFFFFFF& → RGB(255, 255, 255)
+
+All conversions verified successfully!

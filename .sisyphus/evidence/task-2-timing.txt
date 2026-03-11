@@ -1,0 +1,15 @@
+Task 2: Timing Estimation Evidence
+==================================================
+
+WORDS_PER_SECOND constant: 2.5
+
+Timing Estimation Tests:
+--------------------------------------------------
+✓ 3 words              | Start:  0.00s | End:  1.20s | Duration:  1.20s | Words: 3
+✓ 10 words             | Start:  0.00s | End:  4.00s | Duration:  4.00s | Words: 10
+✓ 5 words @ 10.5s      | Start: 10.50s | End: 12.50s | Duration:  2.00s | Words: 5
+✓ 1 word               | Start:  0.00s | End:  0.40s | Duration:  0.40s | Words: 1
+✓ Empty string         | Start:  5.00s | End:  5.00s | Duration:  0.00s | Words: 0
+
+Formula: duration = word_count / 2.5
+All timing calculations verified successfully!

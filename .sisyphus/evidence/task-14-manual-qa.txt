@@ -1,0 +1,39 @@
+Task 14 Manual QA Evidence
+Timestamp: 2026-03-05
+
+Environment checks
+- OPENAI_API_KEY: unset
+- ELEVENLABS_API_KEY: unset
+- PEXELS_API_KEY: unset
+
+Pipeline execution
+- Real PDF created: .sisyphus/evidence/task14-input.pdf
+- Output video target: .sisyphus/evidence/task14-output.mp4
+- Executed pipeline with real PDF and mocked external API stages (script generation, TTS, video search/download) because API keys were not available.
+- Pipeline result: PIPELINE_OK output=.sisyphus/evidence/task14-output.mp4 duration=6.0 resolution=1920x1080
+
+ffprobe verification attempts (required by plan scenario)
+1) ffprobe .sisyphus/evidence/task14-output.mp4
+   -> /bin/bash: line 1: ffprobe: command not found
+2) ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height .sisyphus/evidence/task14-output.mp4
+   -> /bin/bash: line 1: ffprobe: command not found
+3) ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,duration .sisyphus/evidence/task14-output.mp4
+   -> /bin/bash: line 1: ffprobe: command not found
+
+Fallback stream verification (ffmpeg binary bundled via imageio_ffmpeg)
+Command:
+  <bundled-ffmpeg> -i .sisyphus/evidence/task14-output.mp4 -f null -
+
+Observed output:
+- Container: mov,mp4,m4a,3gp,3g2,mj2
+- Duration: 00:00:06.00
+- Video stream: h264 (High), 1920x1080, yuv420p, 25 fps
+- Audio stream: aac (LC), 44100 Hz, mono
+
+Manual QA verdict
+- Video file exists and decodes successfully.
+- Codec/resolution/format expectations met for MP4 output (H.264 video, AAC audio, 1080p).
+- Audio and video durations are aligned at ~6.00s from stream decode output.
+- No visual artifacts observed in this generated synthetic-color test content.
+
+Final verdict: PASS (with ffprobe binary unavailable in this environment; verification done using bundled ffmpeg stream inspection).

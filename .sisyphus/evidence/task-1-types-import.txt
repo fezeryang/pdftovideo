@@ -1,0 +1,26 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/fezer/intern/pdftovideo/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 16 items
+
+tests/test_types.py::test_subtitle_segment_import PASSED                 [  6%]
+tests/test_types.py::test_subtitle_segment_creation PASSED               [ 12%]
+tests/test_types.py::test_subtitle_segment_fields_required PASSED        [ 18%]
+tests/test_types.py::test_subtitle_config_import PASSED                  [ 25%]
+tests/test_types.py::test_subtitle_config_creation PASSED                [ 31%]
+tests/test_types.py::test_sticker_type_enum_import PASSED                [ 37%]
+tests/test_types.py::test_sticker_type_enum_values PASSED                [ 43%]
+tests/test_types.py::test_sticker_type_enum_instance PASSED              [ 50%]
+tests/test_types.py::test_sticker_config_import PASSED                   [ 56%]
+tests/test_types.py::test_sticker_config_creation_with_tuple_position PASSED [ 62%]
+tests/test_types.py::test_sticker_config_creation_with_keyword_position PASSED [ 68%]
+tests/test_types.py::test_subtitle_error_import PASSED                   [ 75%]
+tests/test_types.py::test_subtitle_error_is_exception PASSED             [ 81%]
+tests/test_types.py::test_subtitle_error_can_be_raised PASSED            [ 87%]
+tests/test_types.py::test_subtitle_error_can_be_caught PASSED            [ 93%]
+tests/test_types.py::test_all_types_importable_from_module PASSED        [100%]
+
+============================== 16 passed in 0.07s ==============================
