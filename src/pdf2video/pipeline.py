@@ -24,6 +24,8 @@ from pdf2video.video_searcher import search_videos
 
 logger = logging.getLogger(__name__)
 
+# Default video resolution (width, height)
+DEFAULT_RESOLUTION = (1920, 1080)
 
 class PipelineError(Exception):
     pass
@@ -63,6 +65,46 @@ def _raise_stage_error(stage_name: str, exc: Exception) -> None:
     raise PipelineError(f"Failed at step {stage_name}: {exc}") from exc
 
 
+def _default_subtitle_config() -> SubtitleConfig:
+    return SubtitleConfig(
+        font_path="Arial",
+        font_size=48,
+        color=(255, 255, 255),
+        outline_color=(0, 0, 0),
+        position="bottom",
+    )
+
+
+def _generate_subtitles_with_constraints(
+    script: str,
+    audio_duration: float,
+    config: SubtitleConfig,
+) -> list:
+    try:
+        return generate_subtitles(script, audio_duration, config)
+    except TypeError as exc:
+        logger.debug(
+            "generate_subtitles signature fallback triggered (continuing with legacy call): %s",
+            exc,
+        )
+        return generate_subtitles(script, audio_duration)
+
+
+def _export_subtitles_ass(
+    segments: list,
+    output_path: Path,
+    config: SubtitleConfig,
+) -> None:
+    try:
+        export_to_ass(segments, output_path, config, DEFAULT_RESOLUTION)
+    except TypeError as exc:
+        logger.debug(
+            "export_to_ass signature fallback triggered (continuing with legacy call): %s",
+            exc,
+        )
+        export_to_ass(segments, output_path, config)
+
+
 def _check_video_apis_available() -> bool:
     """Check if video APIs (Pexels) are configured."""
     return bool(os.getenv("PEXELS_API_KEY"))
@@ -77,6 +119,7 @@ def run_pipeline(
     sticker_config: Optional[Path] = None,
     subtitle_config: Optional[SubtitleConfig] = None,
     skip_tts: bool = False,
+    target_duration: Optional[float] = None,
 ) -> FinalVideo:
     """Run the full pipeline or audio-only pipeline based on API availability.
     
@@ -88,6 +131,8 @@ def run_pipeline(
         enable_emphasis: Use AI to detect keywords for subtitle emphasis (default False)
         sticker_config: Optional path to JSON sticker configuration file
         subtitle_config: Optional SubtitleConfig for customizing subtitle appearance
+        skip_tts: Skip TTS generation and use estimated/target duration (default False)
+        target_duration: Optional target video duration in seconds (used when skip_tts=True)
     
     Returns:
         FinalVideo with path, duration, and resolution
@@ -106,6 +151,7 @@ def run_pipeline(
             sticker_config=sticker_config,
             subtitle_config=subtitle_config,
             skip_tts=skip_tts,
+            target_duration=target_duration,
         )
     else:
         return _run_audio_only_pipeline(
@@ -117,8 +163,8 @@ def run_pipeline(
             sticker_config=sticker_config,
             subtitle_config=subtitle_config,
             skip_tts=skip_tts,
+            target_duration=target_duration,
         )
-
 def _run_audio_only_pipeline(
     input_path: str,
     output_path: str,
@@ -128,6 +174,7 @@ def _run_audio_only_pipeline(
     sticker_config: Optional[Path] = None,
     subtitle_config: Optional[SubtitleConfig] = None,
     skip_tts: bool = False,
+    target_duration: Optional[float] = None,
 ) -> FinalVideo:
     """Run pipeline that outputs only audio (when PEXELS_API_KEY is not set).
     
@@ -229,6 +276,7 @@ def _run_full_pipeline(
     sticker_config: Optional[Path] = None,
     subtitle_config: Optional[SubtitleConfig] = None,
     skip_tts: bool = False,
+    target_duration: Optional[float] = None,
 ) -> FinalVideo:
     """Run the full pipeline with video generation."""
     
@@ -248,6 +296,7 @@ def _run_full_pipeline(
     video_cache_dir = temp_dir / "videos"
     input_file = Path(input_path)
     subtitle_ass_path: Optional[Path] = None
+    effective_subtitle_config: Optional[SubtitleConfig] = None
     stickers: Optional[list[StickerConfig]] = None
     current_step = 0
 
@@ -291,17 +340,25 @@ def _run_full_pipeline(
                 _raise_stage_error("text-to-speech", exc)
 
         # Get audio duration for subtitle timing
+        # If skip_tts and target_duration provided, use target_duration
         audio_duration: float = 0.0
-        if enable_subtitles or sticker_config is not None:
+        if skip_tts and target_duration is not None and target_duration > 0:
+            audio_duration = target_duration
+            logger.debug("Using target duration for timing: %.2fs", target_duration)
+        elif enable_subtitles or sticker_config is not None:
             from pdf2video.tts_engine import _estimate_duration_seconds
             audio_duration = _estimate_duration_seconds(script)
-
         # Generate subtitles if enabled
         if enable_subtitles:
             current_step += 1
             logger.info("[%d/%s] Generating subtitles...", current_step, total_steps)
             try:
-                segments = generate_subtitles(script, audio_duration)
+                effective_subtitle_config = subtitle_config or _default_subtitle_config()
+                segments = _generate_subtitles_with_constraints(
+                    script,
+                    audio_duration,
+                    effective_subtitle_config,
+                )
                 
                 # Apply emphasis if enabled (non-blocking on failure)
                 if enable_emphasis:
@@ -315,18 +372,10 @@ def _run_full_pipeline(
                 
                 # Export ASS file to temp directory
                 subtitle_ass_path = temp_dir / "subtitles.ass"
-                subtitle_config = subtitle_config or SubtitleConfig(
-                    font_path="Arial",
-                    font_size=48,
-                    color=(255, 255, 255),
-                    outline_color=(0, 0, 0),
-                    position="bottom",
-                )
-                export_to_ass(segments, subtitle_ass_path, subtitle_config)
+                _export_subtitles_ass(segments, subtitle_ass_path, effective_subtitle_config)
                 logger.debug("Subtitles exported to %s", subtitle_ass_path)
             except Exception as exc:
-                logger.warning("Subtitle generation failed (continuing without subtitles): %s", exc)
-                subtitle_ass_path = None
+                _raise_stage_error("subtitle generation", exc)
 
         # Load sticker config if provided
         if sticker_config is not None:
@@ -353,23 +402,37 @@ def _run_full_pipeline(
 
         current_step += 1
         logger.info("[%d/%s] Downloading video clips...", current_step, total_steps)
-        try:
-            for clip in clips:
+        download_errors: list[str] = []
+        for clip in clips:
+            try:
                 downloaded_clips.append(download_video(clip, cache_dir=str(video_cache_dir)))
-        except Exception as exc:
-            _raise_stage_error("video download", exc)
+            except Exception as exc:
+                clip_name = clip.file_path.name
+                logger.warning("Video clip download failed for %s: %s", clip_name, exc)
+                download_errors.append(f"{clip_name}: {exc}")
+
+        if not downloaded_clips:
+            if download_errors:
+                raise PipelineError(
+                    "Failed at step video download: no clips downloaded; "
+                    f"{len(download_errors)} failures. First failure: {download_errors[0]}"
+                )
+            raise PipelineError("Failed at step video download: no clips downloaded")
 
         current_step += 1
         logger.info("[%d/%s] Composing final video...", current_step, total_steps)
         try:
             # Use placeholder audio path if skip_tts is True
             audio_file = str(audio_path) if not skip_tts else None
+            # Pass target_duration for no-audio path (skip_tts mode)
+            effective_target = target_duration if (skip_tts and target_duration is not None and target_duration > 0) else None
             final_video = compose_video(
                 audio_file,
                 downloaded_clips,
                 output_path,
                 subtitle_path=subtitle_ass_path,
                 stickers=stickers,
+                target_duration=effective_target,
             )
         except Exception as exc:
             _raise_stage_error("video composition", exc)

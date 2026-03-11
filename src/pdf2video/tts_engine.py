@@ -142,6 +142,20 @@ def _combine_audio_chunks(chunk_paths: List[Path], output_path: Path) -> None:
 
 
 def _estimate_duration_seconds(text: str) -> float:
+    if not text or not text.strip():
+        return 0.0
+    # Try to detect if text contains CJK characters
+    has_cjk = any('\u4e00' <= c <= '\u9fff' for c in text)
+    if has_cjk:
+        # For CJK text, estimate based on character count
+        # Average Chinese speech rate is ~2-3 characters per second
+        char_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+        if char_count > 0:
+            return round(char_count / 2.5, 2)  # ~2.5 chars per second
+    word_count = len(text.split())
+    if word_count == 0:
+        return 0.0
+    return round(word_count / WORDS_PER_SECOND, 2)
     word_count = len(text.split())
     if word_count == 0:
         return 0.0

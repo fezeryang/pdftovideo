@@ -609,6 +609,78 @@ def test_compose_with_stickers(tmp_path):
 
 
 
+def test_compose_with_subtitles_and_stickers_moviepy_fallback_layers_correctly(tmp_path):
+    audio_path = tmp_path / "audio.mp3"
+    video_path = tmp_path / "video.mp4"
+    subtitle_path = tmp_path / "subs.ass"
+    sticker_path = tmp_path / "logo.png"
+    output_path = tmp_path / "output.mp4"
+    audio_path.write_bytes(b"audio")
+    video_path.write_bytes(b"video")
+    subtitle_path.write_text("[Script Info]\n", encoding="utf-8")
+    sticker_path.write_bytes(b"fake png")
+
+    moviepy_mock, _, _, _ = _build_moviepy_mock(audio_duration=3.0, video_duration=3.0)
+    sticker_clip = _create_sticker_clip_mock()
+
+    text_clip = MagicMock()
+    text_clip.with_start.return_value = text_clip
+    text_clip.with_duration.return_value = text_clip
+    text_clip.with_position.return_value = text_clip
+    moviepy_mock.TextClip.return_value = text_clip
+
+    composited_clip = MagicMock()
+    composited_clip.duration = 3.0
+    composited_clip.fps = 30
+    composited_clip.resize.return_value = composited_clip
+    composited_clip.set_audio.return_value = composited_clip
+    moviepy_mock.CompositeVideoClip.return_value = composited_clip
+
+    event = MagicMock()
+    event.start = 0
+    event.end = 1200
+    event.text = "Subtitle with sticker"
+    subtitle_data = MagicMock()
+    subtitle_data.events = [event]
+    pysubs2_mock = MagicMock()
+    pysubs2_mock.load.return_value = subtitle_data
+
+    clips = [VideoClip(file_path=video_path, duration=3.0, search_query="query")]
+    stickers = [
+        StickerConfig(
+            path=str(sticker_path),
+            sticker_type=StickerType.PNG,
+            position="center",
+            start_time=0.0,
+            end_time=3.0,
+            scale=1.0,
+        )
+    ]
+    real_import_module = importlib.import_module
+
+    with patch("pdf2video.compositor._load_moviepy_editor", return_value=moviepy_mock):
+        with patch("pdf2video.compositor.check_ffmpeg_available", return_value=False):
+            with patch("pdf2video.compositor.load_sticker", return_value=sticker_clip):
+                with patch("pdf2video.compositor.importlib.import_module") as mock_import_module:
+                    mock_import_module.side_effect = (
+                        lambda name: pysubs2_mock if name == "pysubs2" else real_import_module(name)
+                    )
+                    result = compose_video(
+                        str(audio_path),
+                        clips,
+                        str(output_path),
+                        subtitle_path=subtitle_path,
+                        stickers=stickers,
+                    )
+
+    assert result.file_path == output_path
+    moviepy_mock.CompositeVideoClip.assert_called_once()
+    overlay_layers = moviepy_mock.CompositeVideoClip.call_args[0][0]
+    assert len(overlay_layers) == 3
+    assert overlay_layers[1] is sticker_clip
+    assert overlay_layers[2] is text_clip
+
+
 def test_compose_without_stickers_backward_compatible(tmp_path):
     """Test that stickers=None (default) maintains backward compatibility."""
     audio_path = tmp_path / "audio.mp3"
@@ -699,3 +771,82 @@ def test_sticker_clips_closed_after_composition(tmp_path):
 
     # Verify sticker clip was closed
     sticker_clip.close.assert_called_once()
+
+
+# ========================== TARGET DURATION TESTS ==========================
+
+
+def test_compose_with_target_duration_loops_short_video(tmp_path):
+    """Test that target_duration loops video when no audio and video is shorter."""
+    video_path = tmp_path / "video.mp4"
+    output_path = tmp_path / "output.mp4"
+    video_path.write_bytes(b"video")
+
+    moviepy_mock, _, video_clip, _ = _build_moviepy_mock(audio_duration=0.0, video_duration=10.0)
+    video_clip.duration = 10.0
+    
+    # Set up concatenate to return a clip that can be trimmed
+    looped_clip = MagicMock()
+    looped_clip.duration = 300.0
+    looped_clip.fps = 30
+    looped_clip.resize.return_value = looped_clip
+    looped_clip.subclip.return_value = looped_clip
+    moviepy_mock.concatenate_videoclips.return_value = looped_clip
+
+    clips = [VideoClip(file_path=video_path, duration=10.0, search_query="query")]
+
+    with patch("pdf2video.compositor._load_moviepy_editor", return_value=moviepy_mock):
+        with patch("pdf2video.compositor.check_ffmpeg_available", return_value=False):
+            result = compose_video(None, clips, str(output_path), target_duration=300.0)
+
+    # Verify concatenate was called (for looping)
+    moviepy_mock.concatenate_videoclips.assert_called()
+    # Verify subclip was called to trim to exact duration
+    looped_clip.subclip.assert_called_with(0, 300.0)
+    assert result.file_path == output_path
+
+
+def test_compose_with_target_duration_trims_long_video(tmp_path):
+    """Test that target_duration trims video when no audio and video is longer."""
+    video_path = tmp_path / "video.mp4"
+    output_path = tmp_path / "output.mp4"
+    video_path.write_bytes(b"video")
+
+    moviepy_mock, _, video_clip, _ = _build_moviepy_mock(audio_duration=0.0, video_duration=600.0)
+    video_clip.duration = 600.0
+    trimmed_clip = MagicMock()
+    trimmed_clip.duration = 300.0
+    trimmed_clip.fps = 30
+    trimmed_clip.resize.return_value = trimmed_clip
+    video_clip.subclip.return_value = trimmed_clip
+
+    clips = [VideoClip(file_path=video_path, duration=600.0, search_query="query")]
+
+    with patch("pdf2video.compositor._load_moviepy_editor", return_value=moviepy_mock):
+        with patch("pdf2video.compositor.check_ffmpeg_available", return_value=False):
+            result = compose_video(None, clips, str(output_path), target_duration=300.0)
+
+    # Verify subclip was called to trim
+    video_clip.subclip.assert_called_with(0, 300.0)
+    assert result.file_path == output_path
+
+
+def test_compose_without_target_duration_no_modification(tmp_path):
+    """Test that without target_duration, video duration is not modified when no audio."""
+    video_path = tmp_path / "video.mp4"
+    output_path = tmp_path / "output.mp4"
+    video_path.write_bytes(b"video")
+
+    moviepy_mock, _, video_clip, _ = _build_moviepy_mock(audio_duration=0.0, video_duration=60.0)
+    video_clip.duration = 60.0
+    video_clip.subclip = MagicMock()
+
+    clips = [VideoClip(file_path=video_path, duration=60.0, search_query="query")]
+
+    with patch("pdf2video.compositor._load_moviepy_editor", return_value=moviepy_mock):
+        with patch("pdf2video.compositor.check_ffmpeg_available", return_value=False):
+            result = compose_video(None, clips, str(output_path))
+
+    # Verify subclip was NOT called (no trimming)
+    video_clip.subclip.assert_not_called()
+    assert result.file_path == output_path

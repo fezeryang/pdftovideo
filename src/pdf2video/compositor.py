@@ -80,7 +80,7 @@ def _loop_clip(moviepy_editor: Any, clip: Any, duration: float) -> Any:
     return clip.fx(vfx.loop, duration=duration)
 
 
-def _apply_subtitles_moviepy(moviepy_editor: Any, clip: Any, subtitle_path: Path) -> Any:
+def _build_subtitle_clips_moviepy(moviepy_editor: Any, subtitle_path: Path) -> List[Any]:
     pysubs2 = _load_pysubs2()
     subtitles = pysubs2.load(str(subtitle_path))
 
@@ -103,10 +103,7 @@ def _apply_subtitles_moviepy(moviepy_editor: Any, clip: Any, subtitle_path: Path
         text_clip = text_clip.with_position(("center", "bottom"))
         subtitle_clips.append(text_clip)
 
-    if not subtitle_clips:
-        return clip
-
-    return moviepy_editor.CompositeVideoClip([clip, *subtitle_clips])
+    return subtitle_clips
 
 
 def compose_video(
@@ -116,7 +113,22 @@ def compose_video(
     resolution: tuple[int, int] = (1920, 1080),
     subtitle_path: Optional[Path] = None,
     stickers: Optional[List[StickerConfig]] = None,
+    target_duration: Optional[float] = None,
 ) -> FinalVideo:
+    """Compose a video from clips, optional audio, subtitles, and stickers.
+    
+    Args:
+        audio_path: Path to audio file, or None for no audio
+        video_clips: List of VideoClip objects to compose
+        output_path: Path for output video file
+        resolution: Output resolution (width, height), defaults to (1920, 1080)
+        subtitle_path: Optional path to ASS subtitle file
+        stickers: Optional list of StickerConfig for overlays
+        target_duration: Optional target duration in seconds (used when no audio)
+    
+    Returns:
+        FinalVideo with path, duration, and resolution
+    """
     logger.info("Starting video composition (output: %s)", output_path)
     logger.debug("Composition parameters: resolution=%s, video_clips=%d", resolution, len(video_clips))
     if not video_clips:
@@ -161,6 +173,7 @@ def compose_video(
     final_video_clip: Any = None
     ffmpeg_subtitle_burn = bool(subtitle_file) and check_ffmpeg_available()
     temporary_output_path: Optional[Path] = None
+    audio_duration = 0.0
 
     try:
         if audio_file is not None:
@@ -196,9 +209,21 @@ def compose_video(
                 elif video_duration > audio_duration:
                     logger.info("Trimming video to match audio duration (%.2fs -> %.2fs)", video_duration, audio_duration)
                     composed_video_clip = _trim_clip(composed_video_clip, audio_duration)
-
+        elif target_duration is not None and target_duration > 0:
+            # No audio but target duration specified - enforce target length
+            video_duration = float(getattr(composed_video_clip, "duration", 0.0) or 0.0)
+            logger.debug("No audio - using target duration: %.2fs (video=%.2fs)", target_duration, video_duration)
+            if video_duration > 0:
+                if video_duration < target_duration:
+                    logger.info("Looping video to match target duration (%.2fs -> %.2fs)", video_duration, target_duration)
+                    composed_video_clip = _loop_clip(moviepy_editor, composed_video_clip, target_duration)
+                elif video_duration > target_duration:
+                    logger.info("Trimming video to match target duration (%.2fs -> %.2fs)", video_duration, target_duration)
+                    composed_video_clip = _trim_clip(composed_video_clip, target_duration)
         logger.debug("Resizing video to %s", resolution)
         composed_video_clip = _resize_clip(composed_video_clip, resolution)
+
+        overlay_layers: List[Any] = [composed_video_clip]
 
         # Load and apply stickers if provided
         if stickers:
@@ -211,17 +236,16 @@ def compose_video(
                 sticker_clip = sticker_clip.with_start(sticker_config.start_time)
                 sticker_clip = sticker_clip.with_duration(sticker_duration)
                 loaded_sticker_clips.append(sticker_clip)
-            
-            # Composite video with all stickers
-            logger.debug("Compositing video with %d stickers", len(loaded_sticker_clips))
-            composed_video_clip = moviepy_editor.CompositeVideoClip([
-                composed_video_clip,
-                *loaded_sticker_clips,
-            ])
+
+            overlay_layers.extend(loaded_sticker_clips)
 
         if subtitle_file is not None and not ffmpeg_subtitle_burn:
             logger.warning("FFmpeg unavailable, using MoviePy subtitle fallback")
-            composed_video_clip = _apply_subtitles_moviepy(moviepy_editor, composed_video_clip, subtitle_file)
+            overlay_layers.extend(_build_subtitle_clips_moviepy(moviepy_editor, subtitle_file))
+
+        if len(overlay_layers) > 1:
+            logger.debug("Compositing video with %d overlay layers", len(overlay_layers) - 1)
+            composed_video_clip = moviepy_editor.CompositeVideoClip(overlay_layers)
 
         if audio_clip is not None:
             logger.debug("Setting audio track")

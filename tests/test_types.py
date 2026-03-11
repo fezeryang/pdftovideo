@@ -59,6 +59,56 @@ def test_subtitle_config_creation():
     assert config.position == "bottom"
 
 
+def test_subtitle_config_with_defaults():
+    """Test creating a SubtitleConfig with default values for new fields."""
+    SubtitleConfig = types_module.SubtitleConfig
+    config = SubtitleConfig(
+        font_path="/usr/share/fonts/Arial.ttf",
+        font_size=48,
+        color=(255, 255, 255),
+        outline_color=(0, 0, 0),
+        position="bottom"
+    )
+    # Check backward compatibility - old fields work
+    assert config.font_path == "/usr/share/fonts/Arial.ttf"
+    assert config.font_size == 48
+    assert config.color == (255, 255, 255)
+    assert config.outline_color == (0, 0, 0)
+    assert config.position == "bottom"
+    # Check new fields have expected defaults
+    assert config.max_lines == 2
+    assert config.max_chars_per_line == 30
+    assert config.bottom_margin_ratio == 0.2
+    assert config.min_duration == 0.5
+    assert config.max_duration == 10.0
+
+
+def test_subtitle_config_with_custom_values():
+    """Test creating a SubtitleConfig with custom values for all fields."""
+    SubtitleConfig = types_module.SubtitleConfig
+    config = SubtitleConfig(
+        font_path="/custom/font.ttf",
+        font_size=64,
+        color=(255, 0, 0),
+        outline_color=(255, 255, 255),
+        position="top",
+        max_lines=3,
+        max_chars_per_line=40,
+        bottom_margin_ratio=0.15,
+        min_duration=1.0,
+        max_duration=15.0
+    )
+    assert config.font_path == "/custom/font.ttf"
+    assert config.font_size == 64
+    assert config.color == (255, 0, 0)
+    assert config.outline_color == (255, 255, 255)
+    assert config.position == "top"
+    assert config.max_lines == 3
+    assert config.max_chars_per_line == 40
+    assert config.bottom_margin_ratio == 0.15
+    assert config.min_duration == 1.0
+    assert config.max_duration == 15.0
+
 def test_sticker_type_enum_import():
     """Test that StickerType enum can be imported."""
     StickerType = types_module.StickerType

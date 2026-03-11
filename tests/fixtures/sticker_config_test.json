@@ -1,0 +1,18 @@
+{
+  "stickers": [
+    {
+      "path": "tests/fixtures/test_logo.png",
+      "position": "top-right",
+      "start_time": 0,
+      "end_time": 3,
+      "scale": 0.3
+    },
+    {
+      "path": "tests/fixtures/watermark.gif",
+      "position": "bottom-left",
+      "start_time": 2,
+      "end_time": 5,
+      "scale": 0.2
+    }
+  ]
+}

@@ -60,6 +60,11 @@ def cmd_generate(args: argparse.Namespace) -> int:
     if input_path.suffix.lower() not in valid_extensions:
         print(f"Error: Unsupported file format. Expected .pdf or .txt, got {input_path.suffix}", file=sys.stderr)
         return 1
+    
+    # Validate target duration if provided
+    if args.target_duration is not None and args.target_duration <= 0:
+        print("Error: --target-duration must be > 0", file=sys.stderr)
+        return 1
     try:
         logger.info("Starting document to video conversion...")
         final_video = run_pipeline(
@@ -70,6 +75,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
             enable_emphasis=not args.no_emphasis,
             sticker_config=Path(args.stickers) if args.stickers else None,
             skip_tts=args.no_tts,
+            target_duration=args.target_duration,
         )
         print(f"✓ Video created successfully: {final_video.file_path}")
         return 0
@@ -192,6 +198,12 @@ def create_parser() -> argparse.ArgumentParser:
         "--no-tts",
         action="store_true",
         help="Skip TTS generation (for testing without ElevenLabs API)",
+    )
+    parser_generate.add_argument(
+        "--target-duration",
+        type=float,
+        default=None,
+        help="Target video duration in seconds (>0); overrides estimated duration when --no-tts is used",
     )
     parser_generate.set_defaults(func=cmd_generate)
     

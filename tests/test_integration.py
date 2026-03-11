@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib
+import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,11 +53,51 @@ def _mock_response(
     return response
 
 
+def _ffprobe_duration_seconds(video_path: Path) -> float:
+    if shutil.which("ffprobe") is None:
+        pytest.skip("ffprobe is required for playability assertions")
+
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(video_path),
+    ]
+    completed = subprocess.run(command, check=True, capture_output=True, text=True)
+    return float(completed.stdout.strip())
+
+
+def _assert_subtitle_constraints(
+    ass_path: Path,
+    *,
+    max_lines: int = 2,
+    max_chars_per_line: int = 30,
+    min_duration: float = 0.5,
+    max_duration: float = 10.0,
+) -> None:
+    pysubs2 = importlib.import_module("pysubs2")
+    subs = pysubs2.load(str(ass_path))
+
+    assert subs.events, "Expected at least one subtitle event"
+    for event in subs.events:
+        duration_seconds = (float(event.end) - float(event.start)) / 1000.0
+        lines = str(event.text).split("\\N")
+
+        assert len(lines) <= max_lines
+        assert all(len(line) <= max_chars_per_line for line in lines)
+        assert min_duration <= duration_seconds <= max_duration
+
+
 class _FakeClip:
-    def __init__(self, duration: float = 5.0, write_bytes: bytes = b"final-video"):
+    def __init__(self, duration: float = 5.0, write_bytes: bytes = b"final-video", playable_output: bool = False):
         self.duration = duration
         self.fps = 30
         self._write_bytes = write_bytes
+        self._playable_output = playable_output
 
     def resize(self, newsize: tuple[int, int]):
         return self
@@ -71,6 +114,34 @@ class _FakeClip:
         return self
 
     def write_videofile(self, output_path: str, codec: str, audio_codec: str, fps: int):
+        if self._playable_output and shutil.which("ffmpeg") is not None:
+            duration = max(float(self.duration or 0.0), 0.6)
+            command = [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=320x240:r=24",
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=r=44100:cl=stereo",
+                "-t",
+                f"{duration:.3f}",
+                "-shortest",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-movflags",
+                "+faststart",
+                output_path,
+            ]
+            subprocess.run(command, check=True, capture_output=True, text=True)
+            return
         Path(output_path).write_bytes(self._write_bytes)
 
     def close(self):
@@ -95,18 +166,22 @@ class _FakeAudioClip:
 
 
 class _FakeMoviePyEditor:
-    def __init__(self, *, fail_export: bool = False):
+    def __init__(self, *, fail_export: bool = False, playable_output: bool = False):
         self.vfx = SimpleNamespace(loop=object())
         self._fail_export = fail_export
+        self._playable_output = playable_output
 
     def AudioFileClip(self, _path: str):
         return _FakeAudioClip()
 
     def VideoFileClip(self, _path: str):
-        return _FakeClip(duration=4.0)
+        return _FakeClip(duration=4.0, playable_output=self._playable_output)
 
     def concatenate_videoclips(self, clips, method: str = "compose"):
-        clip = _FakeClip(duration=float(sum(getattr(c, "duration", 0.0) for c in clips)))
+        clip = _FakeClip(
+            duration=float(sum(getattr(c, "duration", 0.0) for c in clips)),
+            playable_output=self._playable_output,
+        )
         if self._fail_export:
             def _raise(*_args, **_kwargs):
                 raise RuntimeError("ffmpeg failed")
@@ -135,6 +210,7 @@ def integration_env(tmp_path, monkeypatch):
         empty_search_results: bool = False,
         fail_composition: bool = False,
         script_text: str = "Narration script for testing.",
+        playable_output: bool = False,
     ):
         temp_dir = tmp_path / "pipeline_tmp"
         temp_dir.mkdir(exist_ok=True)
@@ -200,7 +276,11 @@ def integration_env(tmp_path, monkeypatch):
         monkeypatch.setattr(tts_engine, "_create_client", lambda: elevenlabs_client)
         monkeypatch.setattr(video_searcher, "_create_client", lambda: (requests_module, "test_api_key"))
         monkeypatch.setattr(video_downloader, "_create_client", lambda: (requests_module, "test_api_key"))
-        monkeypatch.setattr(compositor, "_load_moviepy_editor", lambda: _FakeMoviePyEditor(fail_export=fail_composition))
+        monkeypatch.setattr(
+            compositor,
+            "_load_moviepy_editor",
+            lambda: _FakeMoviePyEditor(fail_export=fail_composition, playable_output=playable_output),
+        )
         # Disable FFmpeg subtitle burning in tests (fake video files won't work with FFmpeg)
         # Must mock in compositor where it's imported directly
         monkeypatch.setattr(compositor, "check_ffmpeg_available", lambda: False)
@@ -526,3 +606,91 @@ def test_pipeline_subtitles_disabled_by_default(tmp_path, integration_env, monke
     assert result.file_path == output_path
     assert output_path.exists()
     assert len(generate_subtitles_called) == 0, "Subtitles should NOT be generated when disabled"
+
+
+def test_e2e_cn_subtitles_no_tts_playable_and_constrained(tmp_path, integration_env):
+    fixture_script = (Path(__file__).parent / "fixtures" / "sample_script_cn.txt").read_text(encoding="utf-8")
+    pdf_path = tmp_path / "cn_input.pdf"
+    output_path = tmp_path / "cn_final.mp4"
+    _create_pdf(pdf_path, ["中文测试内容。用于端到端字幕验证。"])
+
+    env = integration_env(script_text=fixture_script, playable_output=True)
+    result = run_pipeline(
+        str(pdf_path),
+        str(output_path),
+        cleanup=False,
+        enable_subtitles=True,
+        skip_tts=True,
+    )
+
+    subtitle_path = env.temp_dir / "subtitles.ass"
+    assert result.file_path == output_path
+    assert output_path.exists()
+    assert env.elevenlabs_client.text_to_speech.convert.call_count == 0
+    assert subtitle_path.exists()
+    assert _ffprobe_duration_seconds(output_path) > 0.0
+    _assert_subtitle_constraints(subtitle_path)
+
+
+def test_e2e_en_subtitles_playable_and_constrained(tmp_path, integration_env):
+    fixture_script = (Path(__file__).parent / "fixtures" / "sample_script_en.txt").read_text(encoding="utf-8")
+    pdf_path = tmp_path / "en_input.pdf"
+    output_path = tmp_path / "en_final.mp4"
+    _create_pdf(pdf_path, ["English test content for subtitle e2e."])
+
+    env = integration_env(script_text=fixture_script, playable_output=True)
+    result = run_pipeline(
+        str(pdf_path),
+        str(output_path),
+        cleanup=False,
+        enable_subtitles=True,
+    )
+
+    subtitle_path = env.temp_dir / "subtitles.ass"
+    assert result.file_path == output_path
+    assert output_path.exists()
+    assert env.elevenlabs_client.text_to_speech.convert.call_count >= 1
+    assert subtitle_path.exists()
+    assert _ffprobe_duration_seconds(output_path) > 0.0
+    _assert_subtitle_constraints(subtitle_path)
+
+
+def test_e2e_en_subtitles_with_sticker_playable_and_constrained(tmp_path, integration_env):
+    fixture_script = (Path(__file__).parent / "fixtures" / "sample_script_en.txt").read_text(encoding="utf-8")
+    pdf_path = tmp_path / "en_sticker_input.pdf"
+    output_path = tmp_path / "en_sticker_final.mp4"
+    sticker_config_path = tmp_path / "sticker_config.json"
+    _create_pdf(pdf_path, ["English test content with sticker."])
+
+    sticker_config_path.write_text(
+        json.dumps(
+            {
+                "stickers": [
+                    {
+                        "path": "tests/fixtures/test_logo.png",
+                        "position": "top-right",
+                        "start_time": 0,
+                        "end_time": 3,
+                        "scale": 0.3,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    env = integration_env(script_text=fixture_script, playable_output=True)
+    result = run_pipeline(
+        str(pdf_path),
+        str(output_path),
+        cleanup=False,
+        enable_subtitles=True,
+        sticker_config=sticker_config_path,
+    )
+
+    subtitle_path = env.temp_dir / "subtitles.ass"
+    assert result.file_path == output_path
+    assert output_path.exists()
+    assert subtitle_path.exists()
+    assert _ffprobe_duration_seconds(output_path) > 0.0
+    _assert_subtitle_constraints(subtitle_path)

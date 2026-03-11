@@ -74,6 +74,7 @@ class TestCmdGenerate:
             enable_emphasis=True,
             sticker_config=None,
             skip_tts=False,
+            target_duration=None,
         )
         
         captured = capsys.readouterr()
@@ -100,6 +101,7 @@ class TestCmdGenerate:
             enable_emphasis=True,
             sticker_config=None,
             skip_tts=False,
+            target_duration=None,
         )
     
     def test_generate_missing_input_file(self, temp_dir, mock_run_pipeline, capsys):
@@ -197,6 +199,66 @@ class TestCmdGenerate:
             assert "Something went wrong" in captured.err
             assert "Please report this issue" in captured.err
 
+    def test_generate_with_target_duration(self, sample_pdf, mock_run_pipeline):
+        """Test generate command with --target-duration flag."""
+        parser = create_parser()
+        args = parser.parse_args([
+            "generate",
+            "--input", str(sample_pdf),
+            "--output", "output.mp4",
+            "--no-tts",
+            "--target-duration", "300.0",
+        ])
+        
+        exit_code = cmd_generate(args)
+        
+        assert exit_code == 0
+        mock_run_pipeline.assert_called_once_with(
+            input_path=str(sample_pdf),
+            output_path="output.mp4",
+            cleanup=True,
+            enable_subtitles=False,
+            enable_emphasis=True,
+            sticker_config=None,
+            skip_tts=True,
+            target_duration=300.0,
+        )
+
+    def test_generate_target_duration_zero_rejected(self, sample_pdf, mock_run_pipeline, capsys):
+        """Test generate command rejects --target-duration 0."""
+        parser = create_parser()
+        args = parser.parse_args([
+            "generate",
+            "--input", str(sample_pdf),
+            "--output", "output.mp4",
+            "--target-duration", "0",
+        ])
+        
+        exit_code = cmd_generate(args)
+        
+        assert exit_code == 1
+        mock_run_pipeline.assert_not_called()
+        
+        captured = capsys.readouterr()
+        assert "Error: --target-duration must be > 0" in captured.err
+
+    def test_generate_target_duration_negative_rejected(self, sample_pdf, mock_run_pipeline, capsys):
+        """Test generate command rejects negative --target-duration."""
+        parser = create_parser()
+        args = parser.parse_args([
+            "generate",
+            "--input", str(sample_pdf),
+            "--output", "output.mp4",
+            "--target-duration", "-10.5",
+        ])
+        
+        exit_code = cmd_generate(args)
+        
+        assert exit_code == 1
+        mock_run_pipeline.assert_not_called()
+        
+        captured = capsys.readouterr()
+        assert "Error: --target-duration must be > 0" in captured.err
 
 class TestCmdInfo:
     """Tests for the info command."""

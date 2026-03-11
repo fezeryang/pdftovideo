@@ -125,10 +125,20 @@ def _get_download_url(requests: Any, api_key: str, video_id: int) -> tuple[str, 
             sd_video = None
             
             for video_file in video_files:
+                # Validate video_file is a dict with required fields
+                if not isinstance(video_file, dict):
+                    logger.warning("Skipping invalid video_file entry (not a dict): %s", type(video_file))
+                    continue
+                
                 # Safely handle None quality
-                quality_val = video_file.get("quality") if video_file else None
-                quality = str(quality_val).lower() if quality_val else ""
-                if quality == "hd" or (video_file and video_file.get("height") == 1080):
+                quality_val = video_file.get("quality")
+                if quality_val is None:
+                    logger.debug("Video file has None quality, treating as empty string")
+                    quality = ""
+                else:
+                    quality = str(quality_val).lower()
+                
+                if quality == "hd" or video_file.get("height") == 1080:
                     hd_video = video_file
                     break
                 elif quality == "sd":
@@ -136,12 +146,18 @@ def _get_download_url(requests: Any, api_key: str, video_id: int) -> tuple[str, 
             
             # Select best available video
             selected_video = hd_video or sd_video or video_files[0]
+            
+            # Validate selected video has required link field
+            if not isinstance(selected_video, dict):
+                logger.error("Selected video is not a valid dict for video ID %d", video_id)
+                raise VideoDownloadError(f"Invalid video metadata structure for video ID {video_id}")
+            
             download_url = selected_video.get("link")
             quality = selected_video.get("quality", "unknown")
             logger.info("Selected video quality: %s for video ID %d", quality, video_id)
             
             if not download_url:
-                logger.error("No download URL available for video ID %d", video_id)
+                logger.error("No download URL available for video ID %d (selected video: %s)", video_id, selected_video)
                 raise VideoDownloadError(f"No download URL available for video ID {video_id}")
             
             # Get duration from main video data

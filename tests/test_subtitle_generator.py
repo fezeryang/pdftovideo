@@ -71,6 +71,17 @@ class TestGenerateSubtitles:
             assert previous.end_time == pytest.approx(current.start_time)
             assert current.end_time >= current.start_time
 
+    def test_timing_is_strictly_increasing_for_many_short_segments(self):
+        module = _subtitle_generator_module()
+        script = " ".join(["Hi." for _ in range(25)])
+        segments = module.generate_subtitles(script, 2.0)
+
+        assert len(segments) == 25
+        for segment in segments:
+            assert segment.end_time > segment.start_time
+        for previous, current in zip(segments, segments[1:]):
+            assert previous.end_time <= current.start_time
+
     def test_total_timing_matches_audio_duration_within_tolerance(self):
         module = _subtitle_generator_module()
         audio_duration = 8.0
@@ -81,6 +92,43 @@ class TestGenerateSubtitles:
         final_end = segments[-1].end_time
         tolerance = audio_duration * 0.05
         assert math.isclose(final_end, audio_duration, abs_tol=tolerance)
+
+    def test_segment_durations_are_clamped_to_config_bounds(self):
+        module = _subtitle_generator_module()
+        config = SubtitleConfig(
+            font_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            font_size=42,
+            color=(255, 255, 255),
+            outline_color=(0, 0, 0),
+            position="bottom",
+            min_duration=0.8,
+            max_duration=1.0,
+        )
+        script = "Hi. " + (" ".join(["word" for _ in range(200)]) + ".")
+        segments = module.generate_subtitles(script, 20.0, config)
+
+        durations = [segment.end_time - segment.start_time for segment in segments]
+        assert len(segments) == 2
+        assert all(duration >= 0.8 for duration in durations)
+        assert all(duration <= 1.0 for duration in durations)
+
+    def test_logs_warning_when_segment_duration_is_clamped(self, caplog):
+        module = _subtitle_generator_module()
+        config = SubtitleConfig(
+            font_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            font_size=42,
+            color=(255, 255, 255),
+            outline_color=(0, 0, 0),
+            position="bottom",
+            min_duration=0.8,
+            max_duration=1.0,
+        )
+        script = "Hi. " + (" ".join(["word" for _ in range(200)]) + ".")
+
+        with caplog.at_level("WARNING"):
+            module.generate_subtitles(script, 20.0, config)
+
+        assert "duration clamped" in caplog.text
 
     def test_estimate_segment_timing_is_used(self, monkeypatch):
         module = _subtitle_generator_module()
@@ -121,6 +169,47 @@ class TestGenerateSubtitles:
         assert segments[0].text == "First sentence."
         assert segments[1].text == "Second sentence!"
         assert segments[2].text == "Third sentence?"
+
+    def test_long_sentence_wraps_to_two_lines_with_char_cap(self):
+        module = _subtitle_generator_module()
+        config = SubtitleConfig(
+            font_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            font_size=42,
+            color=(255, 255, 255),
+            outline_color=(0, 0, 0),
+            position="bottom",
+            max_lines=2,
+            max_chars_per_line=30,
+        )
+        script = (
+            "We optimize throughput, reduce latency significantly, "
+            "and keep outputs deterministic for production systems."
+        )
+
+        segments = module.generate_subtitles(script, 4.0, config)
+
+        assert len(segments) == 1
+        lines = segments[0].text.split("\\N")
+        assert len(lines) <= 2
+        assert all(len(line) <= 30 for line in lines)
+        assert lines[0].endswith(",")
+
+    def test_wrap_text_overflow_is_deterministic_and_capped(self):
+        module = _subtitle_generator_module()
+        text = (
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 "
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 "
+            "tail words"
+        )
+
+        wrapped_once = module.wrap_text_to_lines(text, max_lines=2, max_chars_per_line=30)
+        wrapped_twice = module.wrap_text_to_lines(text, max_lines=2, max_chars_per_line=30)
+
+        assert wrapped_once == wrapped_twice
+        lines = wrapped_once.split("\\N")
+        assert len(lines) <= 2
+        assert all(len(line) <= 30 for line in lines)
+        assert wrapped_once.endswith("...")
 
     def test_returns_subtitle_segment_instances(self):
         module = _subtitle_generator_module()
@@ -223,6 +312,103 @@ class TestExportToAss:
         module.export_to_ass([], output_path, _make_config())
         parsed = pysubs2.SSAFile.from_string(output_path.read_text(encoding="utf-8"))
         assert len(parsed.events) == 0
+
+    def test_export_to_ass_respects_bottom_margin_ratio(self, tmp_path):
+        module = _subtitle_generator_module()
+        config = SubtitleConfig(
+            font_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            font_size=42,
+            color=(255, 255, 255),
+            outline_color=(0, 0, 0),
+            position="bottom",
+            bottom_margin_ratio=0.15,
+        )
+        output_path = tmp_path / "margin.ass"
+        segments = [SubtitleSegment(text="Test", start_time=0.0, end_time=1.0, style="default")]
+        module.export_to_ass(segments, output_path, config, resolution=(1920, 1080))
+        parsed = pysubs2.SSAFile.from_string(output_path.read_text(encoding="utf-8"))
+        expected_margin_v = int(1080 * 0.15)
+        assert parsed.styles["Default"].marginv == expected_margin_v
+
+    def test_export_to_ass_compatibility_with_ffmpeg_burn(self, tmp_path):
+        """Ensure exported ASS is valid for FFmpeg subtitle burning."""
+        module = _subtitle_generator_module()
+        config = SubtitleConfig(
+            font_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            font_size=48,
+            color=(255, 255, 0),
+            outline_color=(0, 0, 0),
+            position="bottom",
+            max_lines=2,
+            max_chars_per_line=40,
+            bottom_margin_ratio=0.1,
+        )
+        output_path = tmp_path / "ffmpeg_test.ass"
+        segments = [
+            SubtitleSegment(
+                text="This is a test\\Nwith multiple lines",
+                start_time=0.0,
+                end_time=2.5,
+                style="default",
+            ),
+            SubtitleSegment(
+                text="Another subtitle!",
+                start_time=2.5,
+                end_time=5.0,
+                style="emphasis",
+            ),
+        ]
+        module.export_to_ass(segments, output_path, config)
+        
+        # Verify file is created and readable
+        assert output_path.exists()
+        content = output_path.read_text(encoding="utf-8")
+        
+        # Verify ASS format structure required by FFmpeg
+        assert "[Script Info]" in content
+        assert "[V4+ Styles]" in content
+        assert "[Events]" in content
+        assert "Format:" in content
+        assert "Dialogue:" in content
+        
+        # Verify parseable by pysubs2 (same library FFmpeg uses internally)
+        parsed = pysubs2.SSAFile.from_string(content)
+        assert len(parsed.events) == 2
+        assert parsed.events[0].text == "This is a test\\Nwith multiple lines"
+        assert parsed.events[1].text == "Another subtitle!"
+        
+        # Verify styles are correctly defined
+        assert "Default" in parsed.styles
+        assert "Emphasis" in parsed.styles
+        assert parsed.styles["Default"].fontsize == 48.0
+        assert parsed.styles["Emphasis"].bold is True
+    def test_export_to_ass_includes_playres_metadata(self, tmp_path):
+        """Verify PlayResX/PlayResY are set for correct FFmpeg rendering."""
+        module = _subtitle_generator_module()
+        config = SubtitleConfig(
+            font_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            font_size=42,
+            color=(255, 255, 255),
+            outline_color=(0, 0, 0),
+            position="bottom",
+        )
+        output_path = tmp_path / "playres.ass"
+        segments = [SubtitleSegment(text="Test", start_time=0.0, end_time=1.0, style="default")]
+        module.export_to_ass(segments, output_path, config, resolution=(1920, 1080))
+        parsed = pysubs2.SSAFile.from_string(output_path.read_text(encoding="utf-8"))
+        assert parsed.info.get("PlayResX") == "1920"
+        assert parsed.info.get("PlayResY") == "1080"
+
+    def test_export_to_ass_playres_uses_custom_resolution(self, tmp_path):
+        """Verify PlayResX/PlayResY adapt to custom resolution."""
+        module = _subtitle_generator_module()
+        config = _make_config()
+        output_path = tmp_path / "custom_res.ass"
+        segments = [SubtitleSegment(text="Test", start_time=0.0, end_time=1.0, style="default")]
+        module.export_to_ass(segments, output_path, config, resolution=(3840, 2160))
+        parsed = pysubs2.SSAFile.from_string(output_path.read_text(encoding="utf-8"))
+        assert parsed.info.get("PlayResX") == "3840"
+        assert parsed.info.get("PlayResY") == "2160"
 
 
 def _mock_keyword_response(content: str) -> SimpleNamespace:

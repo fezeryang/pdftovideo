@@ -191,6 +191,7 @@ python -m pdf2video.cli generate --input <输入文件> --output <输出文件>
 | `--subtitles` | - | ❌ | 启用字幕生成并烧录到视频中 |
 | `--stickers` | - | ❌ | 贴纸配置文件路径 (JSON) |
 | `--no-emphasis` | - | ❌ | 禁用字幕中的文本强调 (加粗/斜体) |
+| `--no-tts` | - | ❌ | 跳过 TTS 生成 (用于在没有 ElevenLabs API 时进行测试) |
 | `--verbose` | `-v` | ❌ | 显示详细日志信息 |
 
 #### 使用示例
@@ -205,6 +206,25 @@ python -m pdf2video.cli generate -i script.txt -o video.mp4
 # 详细日志模式
 python -m pdf2video.cli generate --input doc.pdf --output vid.mp4 --verbose
 ```
+### 字幕配置约束
+
+字幕生成遵循以下默认约束（可在 `src/pdf2video/types.py` 中配置）：
+- **最大行数**: 每段字幕最多 2 行。
+- **每行最大字符数**: 30 个字符。
+- **最短持续时间**: 0.5 秒。
+- **最长持续时间**: 10.0 秒。
+- **底部边距**: 视频高度的 10%。
+
+### QA 与验证命令
+
+为了在不消耗 API 额度的情况下验证流水线，可以使用 `--no-tts` 标志：
+
+```bash
+python -m pdf2video.cli generate --input 论文.pdf --output 测试视频.mp4 --subtitles --no-tts
+```
+
+这将生成一个带有字幕但没有 AI 旁白的视频，方便快速验证视觉效果。
+
 
 #### 生成流程
 

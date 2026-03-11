@@ -86,6 +86,11 @@ class SubtitleConfig:
     color: Tuple[int, int, int]
     outline_color: Tuple[int, int, int]
     position: str
+    max_lines: int = 2
+    max_chars_per_line: int = 30
+    bottom_margin_ratio: float = 0.2
+    min_duration: float = 0.5
+    max_duration: float = 10.0
 
 
 class StickerType(Enum):
