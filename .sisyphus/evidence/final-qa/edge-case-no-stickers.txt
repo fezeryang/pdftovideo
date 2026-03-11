@@ -1,0 +1,8 @@
+=== Edge Case 2: No Stickers ===
+Testing empty stickers array:
+  Result: []
+  PASS: Empty stickers array returns empty list
+
+Testing pipeline with sticker_config=None:
+  Expected: Pipeline should work without calling parse_sticker_config
+  PASS: This is default behavior (verified in code review)

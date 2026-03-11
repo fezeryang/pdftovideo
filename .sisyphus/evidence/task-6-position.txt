@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+collecting ... collected 10 items
+
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[center-expected0] PASSED [ 10%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[top-expected1] PASSED [ 20%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[bottom-expected2] PASSED [ 30%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[left-expected3] PASSED [ 40%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[right-expected4] PASSED [ 50%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[top-left-expected5] PASSED [ 60%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[top-right-expected6] PASSED [ 70%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[bottom-left-expected7] PASSED [ 80%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_keyword_mapping[bottom-right-expected8] PASSED [ 90%]
+tests/test_sticker_overlay.py::TestPositionKeywords::test_position_tuple_passthrough PASSED [100%]
+
+============================== 10 passed in 0.32s ==============================

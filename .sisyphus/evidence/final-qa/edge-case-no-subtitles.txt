@@ -1,0 +1,7 @@
+=== Edge Case 3: No Subtitles ===
+enable_subtitles default value: False
+PASS: Default is False, meaning no subtitles by default
+
+Testing compositor.compose_video with subtitle_path=None:
+  subtitle_path default value: None
+  PASS: Compositor accepts None subtitle_path by default

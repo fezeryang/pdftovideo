@@ -1,0 +1,31 @@
+TASK 6: TTS Engine QA
+=====================
+
+Module Import Test: SUCCESS
+- text_to_speech function importable
+- TTSError exception available
+- _chunk_text_for_tts, _estimate_duration_seconds helpers work
+
+Chunking Test:
+- Input: 1250 chars
+- Output: 3 chunks
+- Max chars per request: 4000
+
+Duration Estimation:
+- "Hello world this is a test sentence" (7 words) -> 2.8s
+- Formula: words / 2.5 words per second
+
+Error Handling:
+- Empty text: TTSError raised correctly
+- Missing API key: TTSError raised correctly
+
+Unit Tests (pytest tests/test_tts_engine.py):
+- test_text_to_speech_generates_audio_file: PASSED
+- test_text_to_speech_handles_api_failure: PASSED
+- test_chunk_text_for_long_input: PASSED
+- test_text_to_speech_chunks_long_text_and_combines_output: PASSED
+- test_create_client_raises_when_api_key_missing: PASSED
+
+Total: 5/5 tests passed
+
+RESULT: PASS

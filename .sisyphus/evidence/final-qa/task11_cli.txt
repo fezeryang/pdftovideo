@@ -1,0 +1,35 @@
+TASK 11: CLI Interface QA
+=========================
+
+CLI Commands Tested:
+
+1. python -m pdf2video.cli --help
+   OUTPUT: Usage information with all commands and options
+   RESULT: PASS
+
+2. python -m pdf2video.cli generate --help
+   OUTPUT: Generate command usage with --input, --output, --no-cleanup options
+   RESULT: PASS
+
+3. python -m pdf2video.cli info
+   OUTPUT:
+   - PDF to Video Conversion Pipeline
+   - Version: 0.1.0
+   - Author: PDF2Video Team
+   RESULT: PASS
+
+4. python -m pdf2video.cli config
+   OUTPUT:
+   - OPENAI_API_KEY: ✗ not set
+   - ELEVENLABS_API_KEY: ✗ not set
+   - PEXELS_API_KEY: ✗ not set
+   RESULT: PASS
+
+5. python -m pdf2video.cli --version
+   OUTPUT: pdf2video 0.1.0
+   RESULT: PASS
+
+Unit Tests (pytest tests/test_cli.py):
+Total: 21/21 tests passed
+
+RESULT: PASS

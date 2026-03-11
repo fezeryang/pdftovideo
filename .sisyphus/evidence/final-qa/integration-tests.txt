@@ -1,0 +1,28 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/fezer/intern/pdftovideo/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 18 items
+
+tests/test_integration.py::test_full_pipeline_end_to_end_with_cleanup PASSED [  5%]
+tests/test_integration.py::test_pipeline_cleanup_disabled_keeps_intermediate_files PASSED [ 11%]
+tests/test_integration.py::test_pipeline_empty_pdf_raises_script_generation_error PASSED [ 16%]
+tests/test_integration.py::test_pipeline_corrupted_pdf_raises_extraction_error PASSED [ 22%]
+tests/test_integration.py::test_pipeline_long_pdf_triggers_script_and_tts_chunking PASSED [ 27%]
+tests/test_integration.py::test_pipeline_propagates_openai_failure PASSED [ 33%]
+tests/test_integration.py::test_pipeline_propagates_tts_failure PASSED   [ 38%]
+tests/test_integration.py::test_pipeline_propagates_pexels_search_failure PASSED [ 44%]
+tests/test_integration.py::test_pipeline_propagates_pexels_download_failure PASSED [ 50%]
+tests/test_integration.py::test_pipeline_propagates_composition_failure PASSED [ 55%]
+tests/test_integration.py::test_pipeline_with_subtitles_enabled PASSED   [ 61%]
+tests/test_integration.py::test_pipeline_with_sticker_config PASSED      [ 66%]
+tests/test_integration.py::test_pipeline_backward_compatible_without_new_features PASSED [ 72%]
+tests/test_integration.py::test_pipeline_with_both_subtitles_and_stickers PASSED [ 77%]
+tests/test_integration.py::test_pipeline_subtitles_disabled_by_default PASSED [ 83%]
+tests/test_integration.py::test_e2e_cn_subtitles_no_tts_playable_and_constrained PASSED [ 88%]
+tests/test_integration.py::test_e2e_en_subtitles_playable_and_constrained PASSED [ 94%]
+tests/test_integration.py::test_e2e_en_subtitles_with_sticker_playable_and_constrained PASSED [100%]
+
+============================== 18 passed in 2.36s ==============================

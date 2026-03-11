@@ -1,7 +1,7 @@
 # PDF转视频自动化流水线 - 使用说明
 
 > 将PDF研究文档或TXT文稿自动转换为高质量AI语音旁白。
-> **注意：目前视频搜索、下载和合成功能暂时挂起，仅支持音频（TTS）生成。**
+> **注意：视频搜索、下载和合成功能需要配置 `PEXELS_API_KEY`。如果未配置，程序将生成音频文件。**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![测试通过率](https://img.shields.io/badge/tests-83%2F83%20passing-brightgreen.svg)]()
@@ -32,7 +32,8 @@ source venv/bin/activate
 cp .env.example .env
 nano .env  # 填入你的API密钥
 
-# 3. 生成音频 (目前仅支持音频生成)
+# 3. 生成视频 (需要 Pexels API 密钥)
+python -m pdf2video.cli generate --input 论文.pdf --output 视频.mp4 --subtitles --stickers examples/sticker_config.json
 python -m pdf2video.cli generate --input 论文.pdf --output 旁白.mp4
 # 或者使用 TXT 文件作为输入
 python -m pdf2video.cli generate --input 稿本.txt --output 旁白.mp4
@@ -187,6 +188,10 @@ python -m pdf2video.cli generate --input <输入文件> --output <输出文件>
 | `--input` | `-i` | ✅ | 输入文件路径 (.pdf 或 .txt)。TXT 文件应包含需要转换成旁白的文本内容。 |
 | `--output` | `-o` | ✅ | 输出视频文件路径 |
 | `--no-cleanup` | - | ❌ | 保留中间文件（音频、视频片段） |
+| `--subtitles` | - | ❌ | 启用字幕生成并烧录到视频中 |
+| `--stickers` | - | ❌ | 贴纸配置文件路径 (JSON) |
+| `--no-emphasis` | - | ❌ | 禁用字幕中的文本强调 (加粗/斜体) |
+| `--no-tts` | - | ❌ | 跳过 TTS 生成 (用于在没有 ElevenLabs API 时进行测试) |
 | `--verbose` | `-v` | ❌ | 显示详细日志信息 |
 
 #### 使用示例
@@ -201,6 +206,25 @@ python -m pdf2video.cli generate -i script.txt -o video.mp4
 # 详细日志模式
 python -m pdf2video.cli generate --input doc.pdf --output vid.mp4 --verbose
 ```
+### 字幕配置约束
+
+字幕生成遵循以下默认约束（可在 `src/pdf2video/types.py` 中配置）：
+- **最大行数**: 每段字幕最多 2 行。
+- **每行最大字符数**: 30 个字符。
+- **最短持续时间**: 0.5 秒。
+- **最长持续时间**: 10.0 秒。
+- **底部边距**: 视频高度的 10%。
+
+### QA 与验证命令
+
+为了在不消耗 API 额度的情况下验证流水线，可以使用 `--no-tts` 标志：
+
+```bash
+python -m pdf2video.cli generate --input 论文.pdf --output 测试视频.mp4 --subtitles --no-tts
+```
+
+这将生成一个带有字幕但没有 AI 旁白的视频，方便快速验证视觉效果。
+
 
 #### 生成流程
 
@@ -248,6 +272,44 @@ python -m pdf2video.cli generate \
   --output "audio_output.mp4" \
   --verbose
 ```
+### 示例3: 生成带字幕和贴纸的视频
+
+```bash
+# 场景：生成一个完整的视频，包含自动生成的字幕和自定义 Logo 贴纸
+python -m pdf2video.cli generate \
+  --input "research.pdf" \
+  --output "final_video.mp4" \
+  --subtitles \
+  --stickers "examples/sticker_config.json" \
+  --verbose
+```
+
+### 贴纸配置 (JSON) 格式说明
+
+贴纸配置文件允许你在视频的特定时间点添加图片或 GIF。
+
+**文件示例 (`sticker_config.json`):**
+```json
+{
+  "stickers": [
+    {
+      "path": "assets/logo.png",
+      "position": "top-right",
+      "start_time": 0,
+      "end_time": 10,
+      "scale": 0.2
+    }
+  ]
+}
+```
+
+**字段说明:**
+- `path`: 贴纸文件的本地路径或 URL。支持 PNG, JPG, GIF。
+- `position`: 贴纸位置。可选值：`center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`。也可以是坐标数组 `[x, y]`。
+- `start_time`: 贴纸出现的开始时间（秒）。
+- `end_time`: 贴纸消失的结束时间（秒）。
+- `scale`: 缩放比例（1.0 为原始大小）。
+- **限制**: 每个视频最多支持 5 个贴纸。
 
 ---
 

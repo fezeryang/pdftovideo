@@ -14,11 +14,14 @@
 - **Automated Composition**: Combines audio, video clips, and transitions into a final MP4 presentation using MoviePy.
 - **Robust Pipeline**: Includes retry logic with exponential backoff for all network operations.
 - **Comprehensive Testing**: Over 80 tests ensuring reliability across all modules.
+- **Subtitles**: Automatically generate and burn subtitles into the video with customizable constraints (max lines, characters per line, etc.).
+- **Stickers**: Add images or logos as stickers with custom timing and positioning.
 
 ## Prerequisites
 
 - Python 3.10 or higher
 - API keys for OpenAI, ElevenLabs, and Pexels
+- FFmpeg (optional, but recommended for optimal subtitle performance)
 
 ## Installation
 
@@ -71,6 +74,33 @@ To convert a PDF to a video:
 ```bash
 python -m pdf2video.cli generate --input research_paper.pdf --output presentation.mp4
 ```
+### Subtitles and Stickers
+
+You can enhance your videos with subtitles and stickers using the following flags:
+
+```bash
+python -m pdf2video.cli generate --input doc.pdf --output video.mp4 --subtitles --stickers examples/sticker_config.json
+```
+
+#### Sticker Configuration Format
+
+Stickers are configured via a JSON file. Example `sticker_config.json`:
+
+```json
+{
+  "stickers": [
+    {
+      "path": "logo.png",
+      "position": "top-right",
+      "start_time": 0,
+      "end_time": 10,
+      "scale": 0.2
+    }
+  ]
+}
+```
+
+Supported positions: `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, or a coordinate tuple `[x, y]`.
 
 ### CLI Commands
 
@@ -78,10 +108,33 @@ python -m pdf2video.cli generate --input research_paper.pdf --output presentatio
   - `--input`: Path to the input PDF file (required).
   - `--output`: Path to the output video file (required).
   - `--no-cleanup`: Keep intermediate files like audio and downloaded clips.
+- `--subtitles`: Enable subtitle generation and burning.
+- `--stickers`: Path to a JSON configuration file for sticker overlays.
+- `--no-emphasis`: Disable text emphasis in generated scripts.
+- `--no-tts`: Skip TTS generation (useful for testing without ElevenLabs API).
 - `info`: Display project metadata (version, author, description).
 - `config`: Check which API keys are currently configured in your environment.
 - `--version`: Show the current version of the tool.
 - `-v, --verbose`: Enable detailed debug logging.
+
+### Subtitle Configuration Constraints
+
+Subtitles are generated with the following default constraints (configurable in `src/pdf2video/types.py`):
+- **Max Lines**: 2 lines per segment.
+- **Max Characters per Line**: 30 characters.
+- **Minimum Duration**: 0.5 seconds.
+- **Maximum Duration**: 10.0 seconds.
+- **Bottom Margin**: 10% of video height.
+
+### QA and Verification
+
+To verify the pipeline without consuming API credits, you can use the `--no-tts` flag:
+
+```bash
+python -m pdf2video.cli generate --input doc.pdf --output test_video.mp4 --subtitles --no-tts
+```
+
+This will generate a video with subtitles but without AI narration, allowing you to verify visual elements quickly.
 
 ## Project Structure
 

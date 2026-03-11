@@ -1,0 +1,13 @@
+=== Edge Case 4: --no-tts Path ===
+Checking CLI parser for --no-tts flag...
+
+Checking pipeline skip_tts parameter...
+  skip_tts default value: False
+  PASS: Pipeline has skip_tts parameter
+
+Checking TTS engine has duration estimation...
+  Estimated duration for test text: 2.8s
+  PASS: Duration estimation works without TTS API
+=== Edge Case 4b: CLI --no-tts Verification ===
+args.no_tts = True
+PASS: --no-tts flag parsed correctly

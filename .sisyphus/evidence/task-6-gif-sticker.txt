@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+tests/test_sticker_overlay.py::TestLoadStickerGIF::test_load_gif_sticker_uses_video_file_clip PASSED [ 50%]
+tests/test_sticker_overlay.py::TestLoadStickerGIF::test_load_gif_does_not_set_duration PASSED [100%]
+
+============================== 2 passed in 0.20s ===============================

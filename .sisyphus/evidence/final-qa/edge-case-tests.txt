@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/fezer/intern/pdftovideo/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 18 items / 10 deselected / 8 selected
+
+tests/test_integration.py::test_pipeline_empty_pdf_raises_script_generation_error PASSED [ 12%]
+tests/test_integration.py::test_pipeline_with_subtitles_enabled PASSED   [ 25%]
+tests/test_integration.py::test_pipeline_with_sticker_config PASSED      [ 37%]
+tests/test_integration.py::test_pipeline_with_both_subtitles_and_stickers PASSED [ 50%]
+tests/test_integration.py::test_pipeline_subtitles_disabled_by_default PASSED [ 62%]
+tests/test_integration.py::test_e2e_cn_subtitles_no_tts_playable_and_constrained PASSED [ 75%]
+tests/test_integration.py::test_e2e_en_subtitles_playable_and_constrained PASSED [ 87%]
+tests/test_integration.py::test_e2e_en_subtitles_with_sticker_playable_and_constrained PASSED [100%]
+
+======================= 8 passed, 10 deselected in 1.80s =======================

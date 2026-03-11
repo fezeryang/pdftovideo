@@ -1,0 +1,21 @@
+TASK 3: Type Definitions QA
+===========================
+
+Test: Import and instantiate all type definitions
+Command: python -c "from pdf2video.types import ..."
+
+Types available:
+- PDFDocument: dataclass for parsed PDF
+- VideoScript: dataclass for complete video script
+- ScriptSegment: dataclass for script timing
+- TTSAudio: dataclass for TTS output
+- VideoClip: dataclass for stock footage clip
+- VideoQuality: enum (HD_720, HD_1080, UHD_4K)
+- OutputFormat: enum (MP4, WEBM, MOV)
+- FinalVideo: dataclass for rendered video
+
+Instance creation test:
+- ScriptSegment(text='test', start_time=0.0, end_time=10.0): SUCCESS
+- VideoScript(full_script='test', segments=[...]): SUCCESS
+
+RESULT: PASS

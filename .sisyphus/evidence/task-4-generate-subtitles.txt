@@ -1,0 +1,19 @@
+Scenario: Generate subtitles from script
+
+Step 1: pytest tests/test_subtitle_generator.py::TestGenerateSubtitles::test_sentence_split_produces_multiple_segments -v
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 1 item
+
+tests/test_subtitle_generator.py::TestGenerateSubtitles::test_sentence_split_produces_multiple_segments PASSED [100%]
+
+============================== 1 passed in 0.10s ===============================
+
+Step 2: python3 segment generation check
+Segments: 2
+  0.0-1.333: Hello world. [default]
+  1.333-4.0: This is a test. [default]

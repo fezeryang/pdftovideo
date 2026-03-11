@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /home/fezer/intern/pdftovideo/venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/fezer/intern/pdftovideo
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 2 items
+
+tests/test_sticker_overlay.py::TestParseStickerConfig::test_reject_six_stickers PASSED [ 50%]
+tests/test_sticker_overlay.py::TestParseStickerConfig::test_reject_ten_stickers PASSED [100%]
+
+============================== 2 passed in 0.18s ===============================

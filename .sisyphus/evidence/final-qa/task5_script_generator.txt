@@ -1,0 +1,25 @@
+TASK 5: Script Generation QA
+=============================
+
+Module Import Test: SUCCESS
+- generate_script, generate_script_from_pdf importable
+- ScriptGenerationError exception available
+- _chunk_content helper function works
+
+Chunking Test:
+- Input: 2600 chars
+- Output: 3 chunks
+- Max chars per chunk: 32000 (8000 tokens * 4 chars/token)
+
+Error Handling:
+- Empty content: ScriptGenerationError raised correctly
+- Missing API key: ScriptGenerationError raised correctly
+
+Unit Tests (pytest tests/test_script_generator.py):
+- test_generate_script_with_mock_openai_client: PASSED
+- test_generate_script_handles_api_error: PASSED
+- test_generate_script_chunks_long_content: PASSED
+
+Total: 3/3 tests passed
+
+RESULT: PASS

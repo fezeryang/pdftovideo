@@ -23,7 +23,9 @@ PROMPT_TEMPLATES = {
         "Turn the provided source content into a clear spoken script. "
         "Keep factual accuracy, explain jargon briefly, and preserve key claims, methods, "
         "and outcomes. Use a confident, engaging tone suitable for voice-over. "
-        "Do not use bullet points, markdown, or stage directions."
+        "Do not use bullet points, markdown, or stage directions. "
+        "CRITICAL: If the source content is in Chinese, you MUST output the narration in Chinese. "
+        "If the source content is in English, output in English. Always match the source language."
     )
 }
 
